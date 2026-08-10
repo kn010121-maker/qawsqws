@@ -2,6 +2,7 @@ import express from 'express';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { GoogleGenAI, Type } from '@google/genai';
+import { calculateRealisticProbability, COMPANY_CONFIGS } from './src/data/companyData.js';
 
 const app = express();
 const PORT = 3000;
@@ -33,64 +34,64 @@ app.get('/api/health', (_req, res) => {
 app.post('/api/analyze', async (req, res) => {
   try {
     const {
-      company = 'TechCorp Inc.',
-      division = 'Engineering',
-      role = 'Software Engineer (Backend)',
+      company = '삼성전자',
+      division = '메모리사업부',
+      role = 'SW개발',
       university = '',
       major = '',
-      gpa = 3.8,
+      gpa = 3.5,
       languages = [],
       certifications = [],
       projects = [],
       selfIntro = '',
     } = req.body;
 
+    const companyConfig = COMPANY_CONFIGS[company] || COMPANY_CONFIGS['TechCorp Inc.'];
+    const bench = companyConfig.benchmark;
+
+    // Run deterministic realistic calculator
+    const realisticCalc = calculateRealisticProbability({
+      company,
+      division,
+      role,
+      gpa,
+      languages,
+      certifications,
+      projects,
+      selfIntro,
+    });
+
     const ai = getGeminiAI();
 
     if (ai) {
       try {
         const prompt = `
-You are Nexus Career AI, a strict, cold, objective expert recruitment analyst for top Korean corporate conglomerates (Samsung, SK Hynix, Hyundai, LG, Kakao, NAVER, etc.).
-CRITICAL REQUIREMENT: All evaluation output, titles, summary quotes, insights, descriptions, and recommendations MUST be written in fluent, professional KOREAN (한국어).
-
-CRITICAL EVALUATION PHILOSOPHY: You MUST evaluate strictly, realistically, and objectively ('냉철하고 현실적인 냉정한 평가'). Do NOT give artificially inflated scores.
-- Average/basic candidates (e.g. GPA < 3.5, 0 certifications, basic language, short self-intro) SHOULD receive 25% ~ 48% probability and "보완 필요" or "보통".
-- Missing certifications, missing or short self-introductions (< 400 chars), low GPA (< 3.3), or lack of practical project/internship experience MUST be heavily penalized with specific risk warnings.
-- Candidates with GPA >= 3.7, OPIc IH/AL, 2+ relevant projects/internships, and certifications should receive 60% ~ 75% ("높음").
-- Only exceptional candidates (GPA 4.0+, top tier language, major lab/intern experience, certifications, detailed self-intro) should receive >80% ("매우 높음").
-
-Analyze the following candidate profile:
-Company: ${company}
+You are Nexus Career AI, a strict, cold, objective recruitment analyst for top Korean corporate conglomerates.
+TARGET COMPANY BENCHMARK DATA:
+Company: ${company} (${companyConfig.name})
 Division: ${division}
 Role: ${role}
+Target Company Passer Benchmark:
+- Top 10% Passers Avg GPA: ${bench.avgGpa} / 4.5
+- Required Language Benchmark: ${bench.reqLanguageText}
+- Required Certifications: ${bench.reqCertCount} item(s) (Preferred: ${bench.preferredCerts.join(', ')})
+- Required Practical Projects: ${bench.reqProjectCount} item(s)
+- Evaluation Focus Factor: ${bench.focusFactor}
 
-Academic:
+Candidate Profile to Evaluate:
 - University: ${university || '미입력'}
 - Major: ${major || '전공'}
-- GPA: ${gpa} / 4.5
+- GPA: ${gpa} / 4.5 (Target Avg: ${bench.avgGpa})
+- Languages: ${JSON.stringify(languages, null, 2)}
+- Certifications: ${JSON.stringify(certifications, null, 2)}
+- Major Projects / Internships (${projects.length} items): ${JSON.stringify(projects, null, 2)}
+- Self Intro Length: ${selfIntro.length} chars
 
-Languages:
-${JSON.stringify(languages, null, 2)}
-
-Certifications:
-${JSON.stringify(certifications, null, 2)}
-
-Major Projects / Internships:
-${JSON.stringify(projects, null, 2)}
-
-Self Introduction (${selfIntro.length} characters):
-"${selfIntro || '자기소개서 미입력'}"
-
-Generate a strict evaluation in Korean with:
-1. Overall success probability (percentage integer 15-92%)
-2. Alignment level ("매우 높음", "높음", "보통", 또는 "보완 필요")
-3. Honest, objective summary quote in Korean highlighting both strengths and realistic bottlenecks.
-4. Radar chart comparison scores (0 to 100) for GPA, Language, Experience, Certificates, ResumeScore for candidate ("mySpecs") and top 10% passers ("avgPassers").
-5. Key insight explanation about the radar chart comparison in Korean, pointing out specs needing improvement.
-6. Core Strengths (2-3 items with title and description in Korean).
-7. Strength Hashtags (2-3 Korean tags, e.g., "#백엔드아키텍처", "#실무경험").
-8. Areas for Optimization in Korean (2-3 actionable points with title, description, and exact probability impact, e.g., "+6%").
-9. Recommended Study Resources (2-3 items in Korean).
+EVALUATION RULES:
+1. Compare candidate's specs strictly against ${company} ${division} ${role} passer standards.
+2. If GPA < ${bench.avgGpa - 0.3}, or certifications are missing when required, or self-intro is under 400 chars, heavily penalize.
+3. Realistic probability range should be calculated around baseline ${realisticCalc.calculatedProb}% (variance allowed ±5% based on self-intro quality).
+4. All text MUST be written in fluent, professional KOREAN.
 `;
 
         const response = await ai.models.generateContent({
@@ -102,7 +103,7 @@ Generate a strict evaluation in Korean with:
               type: Type.OBJECT,
               properties: {
                 probability: { type: Type.INTEGER, description: 'Percentage 0-100' },
-                level: { type: Type.STRING, description: 'High, Moderate, or Low' },
+                level: { type: Type.STRING, description: '매우 높음, 높음, 보통, 보완 필요' },
                 summaryQuote: { type: Type.STRING },
                 radar: {
                   type: Type.OBJECT,
@@ -198,111 +199,69 @@ Generate a strict evaluation in Korean with:
 
     // Heuristic deterministic analyzer if API key is not present or failed
     const numGpa = parseFloat(gpa) || 3.5;
-    const gpaNormalized = Math.min(100, Math.round((numGpa / 4.5) * 100));
-    const langCount = Array.isArray(languages) ? languages.length : 0;
     const certCount = Array.isArray(certifications) ? certifications.length : 0;
     const projCount = Array.isArray(projects) ? projects.length : 0;
     const introLen = (selfIntro || '').length;
 
-    // Strict baseline calculation
-    let baseProb = 30; // Objective starting base for top conglomerates
-
-    if (numGpa >= 4.0) baseProb += 12;
-    else if (numGpa >= 3.6) baseProb += 8;
-    else if (numGpa >= 3.2) baseProb += 3;
-    else baseProb -= 10;
-
-    if (langCount >= 2) baseProb += 10;
-    else if (langCount === 1) baseProb += 4;
-    else baseProb -= 10;
-
-    if (certCount >= 2) baseProb += 10;
-    else if (certCount === 1) baseProb += 4;
-    else baseProb -= 10; // Penalty for missing certifications
-
-    if (projCount >= 3) baseProb += 16;
-    else if (projCount >= 1) baseProb += 8;
-    else baseProb -= 12; // Penalty for lack of project experience
-
-    if (introLen > 800) baseProb += 12;
-    else if (introLen > 400) baseProb += 5;
-    else if (introLen < 200) baseProb -= 15;
-
-    const probability = Math.min(88, Math.max(18, baseProb));
-    const level = probability >= 75 ? '매우 높음' : probability >= 60 ? '높음' : probability >= 45 ? '보통' : '보완 필요';
+    const { calculatedProb, level, radar } = realisticCalc;
 
     const result = {
-      probability,
+      probability: calculatedProb,
       level,
-      summaryQuote: probability >= 60
-        ? `"${company} ${role} 직무 지원자 중 경쟁력 있는 수준이나, 대기업 합격 안정권 진입을 위해 직무 자격증 및 수치화된 성과 보완이 요구됩니다."`
-        : `"${company} ${role} 합격을 위해서는 자격증, 공인 어학 및 자기소개서 내용의 정밀한 스펙 강화가 시급히 필요합니다."`,
-      radar: {
-        mySpecs: {
-          gpa: gpaNormalized,
-          language: Math.min(100, Math.max(20, langCount * 38)),
-          experience: Math.min(100, Math.max(20, projCount * 32)),
-          certificates: Math.min(100, Math.max(15, certCount * 35)),
-          resumeScore: Math.min(100, Math.max(20, Math.floor(introLen / 12))),
-        },
-        avgPassers: {
-          gpa: 82,
-          language: 80,
-          experience: 72,
-          certificates: 65,
-          resumeScore: 80,
-        },
-      },
-      radarInsight: certCount === 0 || projCount === 0
-        ? `핵심 스펙 요소(자격증 및 실무 경험)의 미비로 인해 ${company} 평균 합격자 대비 서류 통과 위험도가 존재합니다.`
-        : `실무 프로젝트 이력이 존재하나, 공인 자격증 및 서류 완성도를 추가 보완 시 합격 확률이 대폭 향상됩니다.`,
+      summaryQuote: calculatedProb >= 75
+        ? `"${company} [${division}] ${role} 직무 상위 합격자 평균 스펙을 상회하는 우수한 지표를 보여주고 있습니다."`
+        : calculatedProb >= 60
+        ? `"${company} [${division}] ${role} 지원자 중 경쟁력이 있으나, ${bench.reqLanguageText} 및 자격증 보완 시 합격 가능성이 한층 강화됩니다."`
+        : `"${company} [${division}] ${role} 직무 합격을 위해서는 ${bench.reqCertCount > 0 ? '직무 관련 기사/클라우드 자격증' : '실무 프로젝트 경험'} 및 자기소개서 내용의 구체적 보완이 필요합니다."`,
+      radar,
+      radarInsight: certCount < bench.reqCertCount || projCount < bench.reqProjectCount
+        ? `${company} 합격자 평균 기준 대비 자격증 또는 프로젝트 실무 경험 항목이 부족하여 서류 전형 감점 위험이 관측됩니다.`
+        : `${company} [${division}] 합격자 벤치마크 대비 핵심 정량/정성 지표가 안정적 범위에 도출되었습니다.`,
       coreStrengths: [
         {
-          title: '학업 및 기초 전공 성취도',
-          description: `전공 학점 ${numGpa}/4.5 로 ${company} ${division} 지원을 위한 базо 기초 지식을 보유함.`,
+          title: `${company} ${role} 직무 적합도`,
+          description: `학점(${numGpa}/4.5) 및 주요 전공 이수 지표가 ${company} [${division}] 채용 요구 조건에 부합합니다.`,
         },
         {
-          title: '실무 프로젝트 수행 경험',
+          title: '실무 프로젝트 및 경험 연관성',
           description: projCount > 0
-            ? `${projCount}건의 관련 프로젝트 경험을 통해 직무 연관성을 입증했습니다.`
-            : '전공 지식을 바탕으로 한 실무 적용 사례 작성이 추가로 필요합니다.',
+            ? `${projCount}건의 관련 경험을 통해 ${role} 직무에 필요한 실무 역량을 작성했습니다.`
+            : '목표 직무와 직결된 프로젝트 경험 및 정량적 성과 작성이 추가로 요구됩니다.',
         },
       ],
       strengthTags: [
+        `#${company}`,
         `#${division.replace(/\s+/g, '')}`,
-        '#직무적합도',
-        '#냉정진단',
+        `#${role.replace(/\s+/g, '')}`,
       ],
       areasForOptimization: [
         {
-          title: certCount === 0 ? '공인 직무 자격증 취득 필수' : '전문 자격증 추가 확보',
-          description: certCount === 0
-            ? `${company} 합격자의 70% 이상이 직무 관련 공인 자격증(기사/클라우드 등)을 최소 1개 이상 보유하고 있습니다.`
-            : '상위 등급 자격증 보유 시 서류 심사 가산점 확보가 가능합니다.',
+          title: certCount < bench.reqCertCount ? `${company} 우대 자격증(${bench.preferredCerts[0] || '기사'}) 취득` : '직무 전문성 자격 보완',
+          description: `${company} ${role} 합격자 상당수가 ${bench.preferredCerts.join(', ')} 등의 자격증을 보유하고 있습니다.`,
           impact: '+8%',
         },
         {
-          title: introLen < 500 ? '자기소개서 작성 분량 및 구체성 보완' : '자기소개서 수치화 및 STAR 기법 적용',
-          description: introLen < 500
-            ? '자기소개서 분량이 부족하여 서류 평가 시 감점 요인이 될 수 있습니다. 구체적 성과 중심으로 최소 800자 이상 작성을 권장합니다.'
-            : '프로젝트 성과를 정량 수치(% 및 백엔드 지표)로 표현 시 서류 평가 점수가 상승합니다.',
+          title: introLen < 600 ? '자기소개서 작성 수치화 및 분량 확대' : '자기소개서 성과 정량화',
+          description: introLen < 600
+            ? '자기소개서 분량이 다소 부족합니다. STAR 기법을 활용하여 성과 위주 800자 이상 작성을 권장합니다.'
+            : '수행한 프로젝트의 구체적 성과(비율, 수치)를 강조하면 평가 점수가 상승합니다.',
           impact: '+6%',
         },
       ],
       studyResources: [
         {
-          title: `${company} 최신 채용 트렌드 및 기출 분석집`,
-          category: '기출족보',
+          title: `${company} ${role} 합격자 스펙 및 최신 면접 기출집`,
+          category: '기출분석',
           url: '#',
         },
         {
-          title: 'AWS / GCP 클라우드 자격증 핵심 대비 키트',
+          title: `${company} 지원자를 위한 ${bench.preferredCerts[0] || '직무'} 자격증 대비 가이드`,
           category: '자격증',
           url: '#',
         },
         {
-          title: 'STAR 기법 기반 자기소개서 및 면접 완성 가이드',
-          category: '면접가이드',
+          title: 'STAR 기법 기반 자소서 정량화 및 직무 면접 노하우',
+          category: '자소서',
           url: '#',
         },
       ],

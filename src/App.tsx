@@ -8,6 +8,7 @@ import {
   ProjectEntry,
   AnalysisResult,
 } from './types';
+import { calculateRealisticProbability, COMPANY_CONFIGS } from './data/companyData';
 
 import { SidebarNav } from './components/SidebarNav';
 import { HomeView } from './components/HomeView';
@@ -169,38 +170,59 @@ export function App() {
       }
     } catch (err) {
       console.error('Analysis error:', err);
-      // Fallback result display
+      // Fallback calculation using realistic benchmark
+      const realisticCalc = calculateRealisticProbability({
+        company: targetGoal.company,
+        division: targetGoal.division,
+        role: targetGoal.role,
+        gpa: academic.gpa,
+        languages,
+        certifications,
+        projects,
+        selfIntro,
+      });
+
+      const config = COMPANY_CONFIGS[targetGoal.company] || COMPANY_CONFIGS['TechCorp Inc.'];
+      const bench = config.benchmark;
+
       const fallbackResult: AnalysisResult = {
         id: Date.now().toString(),
         timestamp: new Date().toISOString(),
         company: targetGoal.company,
         division: targetGoal.division,
         role: targetGoal.role,
-        probability: 78,
-        level: '높음',
-        summaryQuote: `"${targetGoal.company} ${targetGoal.role} 직무 요구 스펙과의 적합도가 매우 높습니다. 자격증 및 어학 점수를 일부 보완하면 상위 10% 합격 안정권 진입이 기대됩니다."`,
-        radar: {
-          mySpecs: { gpa: 85, language: 78, experience: 88, certificates: 60, resumeScore: 82 },
-          avgPassers: { gpa: 82, language: 80, experience: 65, certificates: 60, resumeScore: 75 },
-        },
-        radarInsight:
-          '실무 프로젝트 및 인턴 경험 수치가 평균 합격자 대비 현저히 높으며, 어학 성적의 소폭 미달 요소를 충분히 상쇄해 주고 있습니다.',
+        probability: realisticCalc.calculatedProb,
+        level: realisticCalc.level,
+        summaryQuote: `"${targetGoal.company} [${targetGoal.division}] ${targetGoal.role} 직무 지원자 지표 분석 결과 합격 가능성 ${realisticCalc.calculatedProb}% (${realisticCalc.level})로 진단되었습니다."`,
+        radar: realisticCalc.radar,
+        radarInsight: `${targetGoal.company} 상위 10% 합격자 벤치마크(학점 ${bench.avgGpa}, ${bench.reqLanguageText}) 대비 지원자분의 스펙 지표를 다각도로 비교 분석하였습니다.`,
         coreStrengths: [
           {
-            title: '직무 연관 키워드 일치도 우수',
-            description: '자기소개서 및 이력 분석 결과 대용량 아키텍처, 성능 최적화 등 핵심 역량 키워드가 잘 녹아있습니다.',
+            title: `${targetGoal.company} ${targetGoal.role} 직무 적합성`,
+            description: `주요 학점(${academic.gpa}/4.5) 및 이수한 전공 과목이 ${targetGoal.company} 채용 요구 사항에 잘 부합합니다.`,
           },
           {
-            title: '풍부한 실무 경험 및 기여도',
-            description: '다수의 인턴/프로젝트 수행 경험으로 실제 직무에 바로 투입 가능한 수준의 역량을 검증받았습니다.',
+            title: '실무 프로젝트 및 경험 보유',
+            description: projects.length > 0
+              ? `${projects.length}건의 실무/프로젝트 수행 경험을 바탕으로 역량을 어필하였습니다.`
+              : '추가적인 직무 프로젝트 수행 및 수치화된 성과 작성을 권장합니다.',
           },
         ],
-        strengthTags: ['#백엔드아키텍처', '#문제해결역량', '#실무중심'],
+        strengthTags: [
+          `#${targetGoal.company}`,
+          `#${targetGoal.division.replace(/\s+/g, '')}`,
+          `#${targetGoal.role.replace(/\s+/g, '')}`,
+        ],
         areasForOptimization: [
           {
-            title: '클라우드 자격증 취득 권장',
-            description: 'AWS 자격증이나 정보처리기사 등 직무 자격증을 보완할 경우 전체 합격 가능성이 약 +4% 향상됩니다.',
-            impact: '+4%',
+            title: `${targetGoal.company} 우대 자격증 보완`,
+            description: `${bench.preferredCerts.join(', ')} 자격증 취득 시 가산점이 적용됩니다.`,
+            impact: '+8%',
+          },
+          {
+            title: '자기소개서 STAR 성과 정량화',
+            description: '프로젝트 성과를 숫자로 수치화 시 서류 평가 점수가 상승합니다.',
+            impact: '+6%',
           },
         ],
       };

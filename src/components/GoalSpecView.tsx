@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { TargetGoal, AcademicCredentials, LanguageScore, Certification } from '../types';
+import { COMPANY_CONFIGS } from '../data/companyData';
 
 interface GoalSpecViewProps {
   targetGoal: TargetGoal;
@@ -76,15 +77,25 @@ export const GoalSpecView: React.FC<GoalSpecViewProps> = ({
     onUpdateCertifications(certifications.filter((c) => c.id !== id));
   };
 
+  // Get current company benchmark & config
+  const currentConfig = COMPANY_CONFIGS[targetGoal.company] || COMPANY_CONFIGS['TechCorp Inc.'];
+
+  // Company selection change handler (updates available divisions & roles automatically)
+  const handleCompanySelectChange = (companyName: string) => {
+    const config = COMPANY_CONFIGS[companyName] || COMPANY_CONFIGS['TechCorp Inc.'];
+    const newDivision = config.divisions[0] || 'R&D본부';
+    const newRole = config.roles[0] || '소프트웨어 개발';
+    onUpdateTargetGoal({
+      company: companyName,
+      division: newDivision,
+      role: newRole,
+    });
+  };
+
   // Dynamic AI Insight prompt calculation
   const getAIInsight = () => {
-    if (targetGoal.role.toLowerCase().includes('회로') || targetGoal.role.toLowerCase().includes('semiconductor') || targetGoal.role.toLowerCase().includes('circuit')) {
-      return `${targetGoal.company || '목표 기업'}의 ${targetGoal.role} 직무는 VLSI 설계, 회로 시뮬레이션 경험 및 반도체 공정 이해도를 핵심 평가 지표로 반영합니다.`;
-    }
-    if (targetGoal.role.toLowerCase().includes('데이터') || targetGoal.role.toLowerCase().includes('ai') || targetGoal.role.toLowerCase().includes('data')) {
-      return `${targetGoal.company || '목표 기업'}의 ${targetGoal.role} 직무는 머신러닝 파이프라인 구축, SQL 최적화 및 실무 데이터 분석 경험을 최우선으로 평가합니다.`;
-    }
-    return `${targetGoal.company || '목표 기업'}의 ${targetGoal.role || '소프트웨어'} 직무는 시스템 아키텍처 이해도, 프로젝트 실무 경험 및 문제 해결 역량을 정밀하게 분석합니다.`;
+    const bench = currentConfig.benchmark;
+    return `${targetGoal.company} [${targetGoal.division}]의 ${targetGoal.role} 직무는 상위 10% 합격자 평균 학점 약 ${bench.avgGpa}점, ${bench.reqLanguageText} 수준 및 주요 우대자격(${bench.preferredCerts.slice(0, 2).join(', ')}) 보유 여부를 핵심으로 평가합니다.`;
   };
 
   const gpaPercent = Math.min(100, Math.max(0, (academic.gpa / 4.5) * 100));
@@ -127,22 +138,14 @@ export const GoalSpecView: React.FC<GoalSpecViewProps> = ({
                 <div className="relative">
                   <select
                     value={targetGoal.company}
-                    onChange={(e) => onUpdateTargetGoal({ ...targetGoal, company: e.target.value })}
-                    className="w-full rounded-xl px-3.5 py-2.5 bg-[#f7f9fb] border border-[#e2e8f0] text-sm font-body text-[#191c1e] focus:border-[#003399] focus:outline-none appearance-none cursor-pointer"
+                    onChange={(e) => handleCompanySelectChange(e.target.value)}
+                    className="w-full rounded-xl px-3.5 py-2.5 bg-[#f7f9fb] border border-[#e2e8f0] text-sm font-body text-[#191c1e] focus:border-[#003399] focus:outline-none appearance-none cursor-pointer font-medium"
                   >
-                    <option value="삼성전자">삼성전자 (Samsung Electronics)</option>
-                    <option value="SK하이닉스">SK하이닉스 (SK Hynix)</option>
-                    <option value="현대자동차">현대자동차 (Hyundai Motor)</option>
-                    <option value="LG에너지솔루션">LG에너지솔루션 (LG Energy Solution)</option>
-                    <option value="LG전자">LG전자 (LG Electronics)</option>
-                    <option value="네이버">네이버 (NAVER)</option>
-                    <option value="카카오">카카오 (Kakao)</option>
-                    <option value="현대모비스">현대모비스 (Hyundai Mobis)</option>
-                    <option value="포스코">포스코 (POSCO)</option>
-                    <option value="쿠팡">쿠팡 (Coupang)</option>
-                    <option value="토스">토스 (Toss / 비바리퍼블리카)</option>
-                    <option value="CJ제일제당">CJ제일제당 (CJ CheilJedang)</option>
-                    <option value="TechCorp Inc.">기타 대기업/외국계/중견기업</option>
+                    {Object.keys(COMPANY_CONFIGS).map((compKey) => (
+                      <option key={compKey} value={compKey}>
+                        {COMPANY_CONFIGS[compKey].name}
+                      </option>
+                    ))}
                   </select>
                   <span className="material-symbols-outlined absolute right-3 top-1/2 -translate-y-1/2 text-[#747684] pointer-events-none text-xl">
                     expand_more
@@ -160,15 +163,11 @@ export const GoalSpecView: React.FC<GoalSpecViewProps> = ({
                     onChange={(e) => onUpdateTargetGoal({ ...targetGoal, division: e.target.value })}
                     className="w-full rounded-xl px-3.5 py-2.5 bg-[#f7f9fb] border border-[#e2e8f0] text-sm font-body text-[#191c1e] focus:border-[#003399] focus:outline-none appearance-none cursor-pointer"
                   >
-                    <option value="메모리사업부">메모리사업부</option>
-                    <option value="파운드리사업부">파운드리사업부</option>
-                    <option value="MX사업부">MX사업부 (모바일)</option>
-                    <option value="VD사업부">VD사업부 (디스플레이)</option>
-                    <option value="R&D본부">R&D본부 / 연구소</option>
-                    <option value="SW개발센터">소프트웨어 개발센터</option>
-                    <option value="배터리연구소">배터리 연구소</option>
-                    <option value="플랫폼엔지니어링">플랫폼 엔지니어링 CIC</option>
-                    <option value="경영지원본부">경영지원 / 기획 본부</option>
+                    {currentConfig.divisions.map((div) => (
+                      <option key={div} value={div}>
+                        {div}
+                      </option>
+                    ))}
                   </select>
                   <span className="material-symbols-outlined absolute right-3 top-1/2 -translate-y-1/2 text-[#747684] pointer-events-none text-xl">
                     expand_more
@@ -177,16 +176,37 @@ export const GoalSpecView: React.FC<GoalSpecViewProps> = ({
               </div>
 
               <div className="space-y-1">
-                <label className="block font-headline text-xs font-semibold text-[#444653]">
-                  세부 희망 직무
-                </label>
-                <input
-                  type="text"
-                  value={targetGoal.role}
-                  onChange={(e) => onUpdateTargetGoal({ ...targetGoal, role: e.target.value })}
-                  placeholder="예: 회로설계, 백엔드 개발자, 데이터 엔지니어"
-                  className="w-full rounded-xl px-3.5 py-2.5 bg-[#f7f9fb] border border-[#e2e8f0] text-sm font-body text-[#191c1e] focus:border-[#003399] focus:outline-none"
-                />
+                <div className="flex items-center justify-between">
+                  <label className="block font-headline text-xs font-semibold text-[#444653]">
+                    세부 희망 직무
+                  </label>
+                  <span className="text-[10px] text-[#003399] font-semibold">드롭다운 선택 또는 직접 작성 가능</span>
+                </div>
+                <div className="space-y-2">
+                  <div className="relative">
+                    <select
+                      value={targetGoal.role}
+                      onChange={(e) => onUpdateTargetGoal({ ...targetGoal, role: e.target.value })}
+                      className="w-full rounded-xl px-3.5 py-2.5 bg-[#f7f9fb] border border-[#e2e8f0] text-sm font-body text-[#191c1e] focus:border-[#003399] focus:outline-none appearance-none cursor-pointer"
+                    >
+                      {currentConfig.roles.map((r) => (
+                        <option key={r} value={r}>
+                          {r}
+                        </option>
+                      ))}
+                    </select>
+                    <span className="material-symbols-outlined absolute right-3 top-1/2 -translate-y-1/2 text-[#747684] pointer-events-none text-xl">
+                      expand_more
+                    </span>
+                  </div>
+                  <input
+                    type="text"
+                    value={targetGoal.role}
+                    onChange={(e) => onUpdateTargetGoal({ ...targetGoal, role: e.target.value })}
+                    placeholder="직무 직접 입력 (예: C++ 자율주행 제어 엔지니어)"
+                    className="w-full rounded-xl px-3.5 py-2 bg-white border border-[#d2d5d8] text-xs font-body text-[#191c1e] focus:border-[#003399] focus:outline-none"
+                  />
+                </div>
               </div>
             </form>
           </div>
