@@ -1,0 +1,6 @@
+{
+  "name": "Nexus Career AI",
+  "description": "AI-powered career progress tracker and job admission probability analysis system for top corporate roles.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

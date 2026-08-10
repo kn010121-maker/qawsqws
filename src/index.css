@@ -1,0 +1,144 @@
+@import "tailwindcss";
+
+@layer base {
+  :root {
+    --font-headline: 'Hanken Grotesk', 'Pretendard', sans-serif;
+    --font-body: 'Be Vietnam Pro', 'Pretendard', sans-serif;
+  }
+  body {
+    font-family: var(--font-body);
+    background-color: #f7f9fb;
+    color: #191c1e;
+  }
+  h1, h2, h3, h4, h5, h6 {
+    font-family: var(--font-headline);
+  }
+}
+
+.font-headline {
+  font-family: 'Hanken Grotesk', 'Pretendard', sans-serif;
+}
+
+.font-body {
+  font-family: 'Be Vietnam Pro', 'Pretendard', sans-serif;
+}
+
+.material-symbols-outlined {
+  font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+}
+
+.material-symbols-outlined.fill-icon {
+  font-variation-settings: 'FILL' 1;
+}
+
+.hero-glow {
+  background: radial-gradient(circle at 50% 50%, rgba(0, 51, 153, 0.08) 0%, rgba(247, 249, 251, 0) 70%);
+}
+
+.glass-card {
+  background: rgba(255, 255, 255, 0.85);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid rgba(255, 255, 255, 0.6);
+  box-shadow: 0 8px 32px 0 rgba(10, 25, 47, 0.06);
+}
+
+.shadow-ambient {
+  box-shadow: 0 10px 25px -5px rgba(0, 32, 104, 0.12);
+}
+
+.glow-accent {
+  box-shadow: inset 0 0 0 1px #00e3fd, 0 4px 16px rgba(0, 227, 253, 0.25);
+}
+
+@keyframes float {
+  0% { transform: translateY(0px); }
+  50% { transform: translateY(-12px); }
+  100% { transform: translateY(0px); }
+}
+
+.animate-float {
+  animation: float 6s ease-in-out infinite;
+}
+
+.animate-float-delayed {
+  animation: float 8s ease-in-out infinite 2s;
+}
+
+@keyframes dash {
+  0% {
+    stroke-dasharray: 0, 100;
+  }
+  100% {
+    stroke-dasharray: var(--target-dash, 78), 100;
+  }
+}
+
+.circular-chart-anim {
+  animation: dash 1.5s ease-out forwards;
+}
+
+@keyframes infinite-scroll {
+  0% { transform: translateX(0); }
+  100% { transform: translateX(-50%); }
+}
+
+.animate-marquee {
+  display: flex;
+  width: max-content;
+  animation: infinite-scroll 35s linear infinite;
+}
+
+.animate-marquee:hover {
+  animation-play-state: paused;
+}
+
+/* Custom scrollbars */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: #f2f4f6;
+}
+::-webkit-scrollbar-thumb {
+  background: #c4c5d5;
+  border-radius: 9999px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #747684;
+}
+
+/* Print styles for PDF export */
+@media print {
+  @page {
+    size: A4 portrait;
+    margin: 10mm 10mm 10mm 10mm;
+  }
+  html, body {
+    background: #ffffff !important;
+    color: #000000 !important;
+    overflow: visible !important;
+    height: auto !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+  nav, header, footer, button, .no-print, #nexus-print-iframe {
+    display: none !important;
+  }
+  main {
+    margin: 0 !important;
+    padding: 0 !important;
+    max-width: 100% !important;
+    width: 100% !important;
+  }
+  .shadow-ambient, .glass-card, .shadow-md, .shadow-sm, .shadow-2xl {
+    box-shadow: none !important;
+    border: 1px solid #d2d5d8 !important;
+  }
+  /* Force exact color reproduction for charts and indicators */
+  * {
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+}
